@@ -13,6 +13,8 @@ $customer_group_ids = [-1004894662524];
 
 $update = json_decode(file_get_contents('php://input'), true);
 if (!$update) exit;
+
+logToFile("Webhook Received:", 'webhook');
 logToFile(json_encode($update, JSON_UNESCAPED_UNICODE), 'webhook');
 
 if (isset($update['message'])) {
@@ -21,39 +23,41 @@ if (isset($update['message'])) {
     $user_id = $msg['from']['id'];
     $message_id = $msg['message_id'];
     $text = $msg['text'] ?? null;
+    $caption = $msg['caption'] ?? null;
 
-    // /start 私訊
+    // ✅ 私訊 start 回應
     if ($text === '/start') {
         sendMessage($chat_id, "🌟 各位蒞臨潤匯港的貴賓你好\n有任何匯率相關的問題，請私訊我，我們將盡快為您服務！");
         exit;
     }
 
-    // 管理群組 /公告 處理圖文或純文字
-    if ($chat_id == $manager_group_id && ($text || isset($msg['caption'])) ) {
-        $caption = null;
-        if ($text && strpos($text, '/公告') === 0) {
-            $caption = trim(substr($text, 3));
-        } elseif (isset($msg['caption']) && strpos($msg['caption'], '/公告') === 0) {
-            $caption = trim(substr($msg['caption'], 3));
-        }
+    // ✅ 管理群組公告
+    $is_announce = $chat_id == $manager_group_id && (
+        ($text && strpos($text, '/公告') === 0) ||
+        ($caption && strpos($caption, '/公告') === 0)
+    );
 
-        if ($caption !== null) {
-            foreach ($customer_group_ids as $target) {
-                if (isset($msg['photo'])) {
-                    $file_id = end($msg['photo'])['file_id'];
-                    sendPhoto($target, $file_id, "📢 $caption");
-                } elseif (isset($msg['video'])) {
-                    $file_id = $msg['video']['file_id'];
-                    sendVideo($target, $file_id, "📢 $caption");
-                } else {
-                    sendMessage($target, "📢 $caption");
-                }
+    if ($is_announce) {
+        $content = $text ?? $caption;
+        $ann_text = trim(str_replace('/公告', '', $content));
+        $prefix = "📢";
+
+        foreach ($customer_group_ids as $target) {
+            if (isset($msg['photo'])) {
+                $file_id = end($msg['photo'])['file_id'];
+                $res = sendPhoto($target, $file_id, "$prefix $ann_text");
+            } elseif (isset($msg['video'])) {
+                $file_id = $msg['video']['file_id'];
+                $res = sendVideo($target, $file_id, "$prefix $ann_text");
+            } else {
+                $res = sendMessage($target, "$prefix $ann_text");
             }
-            exit;
+            logToFile("公告回應：$res", 'announce');
         }
+        exit;
     }
 
-    // 客戶私訊 → 轉發給管理群
+    // ✅ 私訊轉發給管理群
     if ($chat_id > 0) {
         $result = forwardMessage($manager_group_id, $chat_id, $message_id);
         $data = json_decode($result, true);
@@ -63,7 +67,7 @@ if (isset($update['message'])) {
         exit;
     }
 
-    // 客服回覆
+    // ✅ 客服群組回覆 → 回私訊客戶
     if ($chat_id == $manager_group_id && isset($msg['reply_to_message'])) {
         $reply_id = $msg['reply_to_message']['message_id'];
         $target_user_id = getMappedUserId($reply_id);
@@ -79,14 +83,15 @@ if (isset($update['message'])) {
                 sendVideo($target_user_id, $video, "🎞️ 潤匯港客服影片回覆");
             }
         } else {
-            logToFile("⚠️ 找不到對應使用者，請確認是否回覆機器人轉發的訊息。", 'reply');
+            logToFile("⚠️ 找不到對應使用者，請確認是否是回覆機器人轉發的訊息。", 'reply');
         }
     }
 }
 
+// ✅ 工具函式
 function sendMessage($chat_id, $text) {
     global $apiURL;
-    file_get_contents($apiURL . "sendMessage?" . http_build_query([
+    return file_get_contents($apiURL . "sendMessage?" . http_build_query([
         'chat_id' => $chat_id,
         'text' => $text
     ]));
@@ -94,7 +99,7 @@ function sendMessage($chat_id, $text) {
 
 function sendPhoto($chat_id, $file_id, $caption = '') {
     global $apiURL;
-    file_get_contents($apiURL . "sendPhoto?" . http_build_query([
+    return file_get_contents($apiURL . "sendPhoto?" . http_build_query([
         'chat_id' => $chat_id,
         'photo' => $file_id,
         'caption' => $caption
@@ -103,7 +108,7 @@ function sendPhoto($chat_id, $file_id, $caption = '') {
 
 function sendVideo($chat_id, $file_id, $caption = '') {
     global $apiURL;
-    file_get_contents($apiURL . "sendVideo?" . http_build_query([
+    return file_get_contents($apiURL . "sendVideo?" . http_build_query([
         'chat_id' => $chat_id,
         'video' => $file_id,
         'caption' => $caption

@@ -17,7 +17,7 @@ $apiURL = "https://api.telegram.org/bot$token/";
 // ✅ 管理群組 & 客戶群組們
 $manager_group_id = -1002143413473; // 管理群
 $customer_group_ids = [
-    -4894662524, // 客戶群 1
+    -4894662524,
     
 ];
 

@@ -41,25 +41,27 @@ if ($chat_id == $manager_group_id && strpos($text, '/公告') === 0) {
     exit;
 }
 
-// ✅ 客服群組回覆原私訊者
-if ($chat_id == $manager_group_id && isset($msg['reply_to_message'])) {
-    $reply_id = $msg['reply_to_message']['message_id'];
-    $target_user_id = getMappedUserId($reply_id);
-    if ($target_user_id) {
-        if (isset($msg['text'])) {
-            sendMessage($target_user_id, "📍 潤匯港客服回覆：\n" . $msg['text']);
-        } elseif (isset($msg['photo'])) {
-            $photo = end($msg['photo'])['file_id'];
-            sendPhoto($target_user_id, $photo, "🖼️ 潤匯港客服圖片回覆");
-        } elseif (isset($msg['video'])) {
-            $video = $msg['video']['file_id'];
-            sendVideo($target_user_id, $video, "🎞️ 潤匯港客服影片回覆");
-        }
-    } else {
-        logToFile("⚠️ 找不到對應使用者，請確認是否是回覆機器人轉發的訊息。", 'reply');
+// ✅ 客戶私訊 → 轉發至管理群組並記錄對應
+if ($chat_type === 'private' && $chat_id == $user_id) {
+    $from_name = $msg['from']['first_name'] ?? '用戶';
+
+    if (isset($msg['text'])) {
+        $message_id = sendMessage($manager_group_id, "💬 {$from_name} 傳來訊息：\n" . $msg['text']);
+        saveUserMapping($message_id, $user_id);
+    } elseif (isset($msg['photo'])) {
+        $photo = end($msg['photo'])['file_id'];
+        $caption = $msg['caption'] ?? '(圖片)';
+        $message_id = sendPhoto($manager_group_id, $photo, "🖼️ {$from_name} 發送圖片：\n" . $caption);
+        saveUserMapping($message_id, $user_id);
+    } elseif (isset($msg['video'])) {
+        $video = $msg['video']['file_id'];
+        $caption = $msg['caption'] ?? '(影片)';
+        $message_id = sendVideo($manager_group_id, $video, "🎞️ {$from_name} 發送影片：\n" . $caption);
+        saveUserMapping($message_id, $user_id);
     }
     exit;
 }
+
 
 // ✅ 客戶私訊 → 轉發至管理群組並記錄對應
 if ($chat_type === 'private' && $chat_id == $user_id) {

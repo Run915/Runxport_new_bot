@@ -29,7 +29,6 @@ if (isset($update['message'])) {
     $message_id = $msg['message_id'];
     $text = $msg['text'] ?? null;
 
-    // ✅ 額外 log 公告訊息類型（除錯用）
     logToFile("📨 公告接收到的訊息類型：" . json_encode(array_keys($msg)), 'webhook');
 
     // ✅ /start 私訊歡迎
@@ -38,24 +37,22 @@ if (isset($update['message'])) {
         exit;
     }
 
-   // ✅ 管理群組發佈公告（支援 forum 群組）
-if ($chat_id == $manager_group_id && isset($msg['text']) && preg_match('/^\/公告\s+/u', $msg['text'])) {
-    $caption = trim(preg_replace('/^\/公告\s*/u', '', $msg['text']));
-
-    foreach ($customer_group_ids as $target_id) {
-        if (isset($msg['photo'])) {
-            $photo = end($msg['photo'])['file_id'];
-            sendPhoto($target_id, $photo, "📢 $caption");
-        } elseif (isset($msg['video'])) {
-            $video = $msg['video']['file_id'];
-            sendVideo($target_id, $video, "📢 $caption");
-        } else {
-            sendMessage($target_id, "📢 $caption");
+    // ✅ 管理群組發佈公告
+    if ($chat_id == $manager_group_id && isset($text) && preg_match('/^\/公告\s+/u', $text)) {
+        $caption = trim(preg_replace('/^\/公告\s*/u', '', $text));
+        foreach ($customer_group_ids as $target_id) {
+            if (isset($msg['photo'])) {
+                $photo = end($msg['photo'])['file_id'];
+                sendPhoto($target_id, $photo, "📢 $caption");
+            } elseif (isset($msg['video'])) {
+                $video = $msg['video']['file_id'];
+                sendVideo($target_id, $video, "📢 $caption");
+            } else {
+                sendMessage($target_id, "📢 $caption");
+            }
         }
+        exit;
     }
-    exit;
-}
-
 
     // ✅ 客戶私訊 → 轉發給管理員 + 建立 mapping
     if ($chat_id > 0) {
@@ -71,7 +68,6 @@ if ($chat_id == $manager_group_id && isset($msg['text']) && preg_match('/^\/公�
     if ($chat_id == $manager_group_id && isset($msg['reply_to_message'])) {
         $reply_id = $msg['reply_to_message']['message_id'];
         $target_user_id = getMappedUserId($reply_id);
-
         if ($target_user_id) {
             if (isset($msg['text'])) {
                 sendMessage($target_user_id, "📍 潤匯港客服回覆：\n" . $msg['text']);
@@ -89,43 +85,60 @@ if ($chat_id == $manager_group_id && isset($msg['text']) && preg_match('/^\/公�
     }
 }
 
-// ✅ 發送文字訊息
+// ✅ 發送文字訊息（curl）
 function sendMessage($chat_id, $text) {
     global $apiURL;
-    file_get_contents($apiURL . "sendMessage?" . http_build_query([
+    sendRequest('sendMessage', [
         'chat_id' => $chat_id,
         'text' => $text
-    ]));
+    ]);
 }
 
-// ✅ 發送圖片
+// ✅ 發送圖片（curl）
 function sendPhoto($chat_id, $file_id, $caption = '') {
     global $apiURL;
-    file_get_contents($apiURL . "sendPhoto?" . http_build_query([
+    sendRequest('sendPhoto', [
         'chat_id' => $chat_id,
         'photo' => $file_id,
         'caption' => $caption
-    ]));
+    ]);
 }
 
-// ✅ 發送影片
+// ✅ 發送影片（curl）
 function sendVideo($chat_id, $file_id, $caption = '') {
     global $apiURL;
-    file_get_contents($apiURL . "sendVideo?" . http_build_query([
+    sendRequest('sendVideo', [
         'chat_id' => $chat_id,
         'video' => $file_id,
         'caption' => $caption
-    ]));
+    ]);
 }
 
-// ✅ 轉發訊息
+// ✅ 轉發訊息（curl）
 function forwardMessage($to, $from, $msg_id) {
-    global $apiURL;
-    return file_get_contents($apiURL . "forwardMessage?" . http_build_query([
+    return sendRequest('forwardMessage', [
         'chat_id' => $to,
         'from_chat_id' => $from,
         'message_id' => $msg_id
-    ]));
+    ]);
+}
+
+// ✅ 發送請求（通用 curl）
+function sendRequest($method, $params) {
+    global $apiURL;
+    $ch = curl_init();
+    curl_setopt($ch, CURLOPT_URL, $apiURL . $method);
+    curl_setopt($ch, CURLOPT_POST, true);
+    curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
+    curl_setopt($ch, CURLOPT_POSTFIELDS, $params);
+    $res = curl_exec($ch);
+    if (curl_errno($ch)) {
+        logToFile("❌ curl 錯誤：" . curl_error($ch), 'curl');
+    } else {
+        logToFile("✅ curl 成功回傳：" . $res, 'curl');
+    }
+    curl_close($ch);
+    return $res;
 }
 
 // ✅ 儲存對應
@@ -152,8 +165,9 @@ function logToFile($text, $type = 'log') {
     $file = $dir . "/{$type}_" . date('Ymd') . ".log";
     $line = "[" . date('H:i:s') . "] " . $text . "\n";
     file_put_contents($file, $line, FILE_APPEND);
-    error_log($line); // ✅ 重點：印出到 Render 控制台
+    error_log($line); // ✅ 印出到 Render 控制台
 }
+
 
 
 

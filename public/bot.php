@@ -1,20 +1,16 @@
 <?php
-// ✅ 僅允許 POST 請求
 if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     http_response_code(405);
     exit('Method Not Allowed');
 }
 
-// ✅ 讀取環境變數中的 TOKEN
 $token = getenv('BOT_TOKEN');
 if (!$token) exit('❌ BOT_TOKEN 未設定');
 $apiURL = "https://api.telegram.org/bot$token/";
 
-// ✅ 管理群組與客戶群組們
 $manager_group_id = -1002143413473;
-$customer_group_ids = [-1004894662524]; // 可增加多個
+$customer_group_ids = [-1004894662524];
 
-// ✅ 接收來自 Telegram 的資料
 $update = json_decode(file_get_contents('php://input'), true);
 if (!$update) exit;
 
@@ -36,7 +32,7 @@ if (isset($update['message'])) {
         exit;
     }
 
-    // ✅ 管理群組使用 /公告 發布訊息
+    // ✅ 管理群組使用 /公告
     if ($chat_id == $manager_group_id && $text && strpos($text, '/公告') === 0) {
         $caption = trim(substr($text, 3));
         foreach ($customer_group_ids as $target) {
@@ -53,17 +49,16 @@ if (isset($update['message'])) {
         exit;
     }
 
-    // ✅ 客戶私訊 → 轉發給管理群，並儲存 mapping
+    // ✅ 私訊 → 轉發給管理群，並儲存對應
     if ($chat_id > 0) {
         $result = forwardMessage($manager_group_id, $chat_id, $message_id);
-        $data = json_decode($result, true);
-        if (isset($data['result']['message_id'])) {
-            saveUserMapping($data['result']['message_id'], $user_id);
+        if (isset($result['result']['message_id'])) {
+            saveUserMapping($result['result']['message_id'], $user_id);
         }
         exit;
     }
 
-    // ✅ 客服群組回覆 → 回傳原私訊客戶
+    // ✅ 客服群組回覆 → 回傳至私訊客戶
     if ($chat_id == $manager_group_id && isset($msg['reply_to_message'])) {
         $reply_id = $msg['reply_to_message']['message_id'];
         $target_user_id = getMappedUserId($reply_id);
@@ -113,14 +108,15 @@ function sendVideo($chat_id, $file_id, $caption = '') {
     ]));
 }
 
-// ✅ 轉發訊息
+// ✅ 轉發訊息 + 回傳資料
 function forwardMessage($to, $from, $msg_id) {
     global $apiURL;
-    return file_get_contents($apiURL . "forwardMessage?" . http_build_query([
+    $res = file_get_contents($apiURL . "forwardMessage?" . http_build_query([
         'chat_id' => $to,
         'from_chat_id' => $from,
         'message_id' => $msg_id
     ]));
+    return json_decode($res, true);
 }
 
 // ✅ 儲存對應
@@ -129,10 +125,10 @@ function saveUserMapping($group_msg_id, $user_id) {
     if (!file_exists(dirname($file))) mkdir(dirname($file), 0777, true);
     $map = file_exists($file) ? json_decode(file_get_contents($file), true) : [];
     $map[$group_msg_id] = $user_id;
-    file_put_contents($file, json_encode($map));
+    file_put_contents($file, json_encode($map, JSON_PRETTY_PRINT));
 }
 
-// ✅ 查詢對應
+// ✅ 查找對應
 function getMappedUserId($group_msg_id) {
     $file = __DIR__ . '/data/user_map.json';
     if (!file_exists($file)) return null;
@@ -147,6 +143,7 @@ function logToFile($text, $type = 'log') {
     $file = $dir . "/{$type}_" . date('Ymd') . ".log";
     file_put_contents($file, "[" . date('H:i:s') . "] " . $text . "\n", FILE_APPEND);
 }
+
 
 
 

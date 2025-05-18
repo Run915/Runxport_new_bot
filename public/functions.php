@@ -1,58 +1,52 @@
 <?php
-define('BOT_TOKEN', 'YOUR_BOT_TOKEN_HERE');
-define('API_URL', 'https://api.telegram.org/bot' . BOT_TOKEN . '/');
-
-$manager_group_id = -1002143413473;
-$customer_group_id = -1002363718529;
-
-function logToFile($text, $tag = 'log') {
-    file_put_contents("$tag.log", date("[Y-m-d H:i:s] ") . $text . PHP_EOL, FILE_APPEND);
-}
+define("BOT_TOKEN", "YOUR_BOT_TOKEN_HERE");
+define("MAP_FILE", __DIR__ . "/user_map.json");
 
 function sendMessage($chat_id, $text) {
-    return telegramSend('sendMessage', [
-        'chat_id' => $chat_id,
-        'text' => $text
-    ]);
+    $url = "https://api.telegram.org/bot" . BOT_TOKEN . "/sendMessage";
+    $post_fields = ['chat_id' => $chat_id, 'text' => $text];
+    return sendRequest($url, $post_fields);
 }
 
-function sendPhoto($chat_id, $file_id, $caption = '') {
-    return telegramSend('sendPhoto', [
-        'chat_id' => $chat_id,
-        'photo' => $file_id,
-        'caption' => $caption
-    ]);
+function sendPhoto($chat_id, $file_id, $caption = "") {
+    $url = "https://api.telegram.org/bot" . BOT_TOKEN . "/sendPhoto";
+    $post_fields = ['chat_id' => $chat_id, 'photo' => $file_id, 'caption' => $caption];
+    return sendRequest($url, $post_fields);
 }
 
-function sendVideo($chat_id, $file_id, $caption = '') {
-    return telegramSend('sendVideo', [
-        'chat_id' => $chat_id,
-        'video' => $file_id,
-        'caption' => $caption
-    ]);
+function sendVideo($chat_id, $file_id, $caption = "") {
+    $url = "https://api.telegram.org/bot" . BOT_TOKEN . "/sendVideo";
+    $post_fields = ['chat_id' => $chat_id, 'video' => $file_id, 'caption' => $caption];
+    return sendRequest($url, $post_fields);
 }
 
-function telegramSend($method, $data) {
-    $ch = curl_init(API_URL . $method);
+function sendRequest($url, $data) {
+    $ch = curl_init();
     curl_setopt_array($ch, [
+        CURLOPT_URL => $url,
         CURLOPT_RETURNTRANSFER => true,
         CURLOPT_POST => true,
         CURLOPT_POSTFIELDS => $data,
-        CURLOPT_HTTPHEADER => ['Content-Type: application/x-www-form-urlencoded']
     ]);
     $result = curl_exec($ch);
     curl_close($ch);
-    logToFile("✅ curl 成功回傳：$result", 'reply');
-    return json_decode($result, true);
+    logToFile("✅ curl 成功回傳：" . $result);
+    return json_decode($result, true)['result']['message_id'] ?? null;
 }
 
-function mapMessageToUser($msg_id, $user_id) {
-    $map = file_exists('user_map.json') ? json_decode(file_get_contents('user_map.json'), true) : [];
-    $map[$msg_id] = $user_id;
-    file_put_contents('user_map.json', json_encode($map));
+function saveUserMapping($message_id, $user_id) {
+    $map = file_exists(MAP_FILE) ? json_decode(file_get_contents(MAP_FILE), true) : [];
+    $map[$message_id] = $user_id;
+    file_put_contents(MAP_FILE, json_encode($map));
 }
 
-function getMappedUserId($msg_id) {
-    $map = file_exists('user_map.json') ? json_decode(file_get_contents('user_map.json'), true) : [];
-    return $map[$msg_id] ?? null;
+function getMappedUserId($message_id) {
+    $map = file_exists(MAP_FILE) ? json_decode(file_get_contents(MAP_FILE), true) : [];
+    return $map[$message_id] ?? null;
 }
+
+function logToFile($text, $prefix = 'log') {
+    $log = "[" . date("H:i:s") . "] " . $text . "\n";
+    file_put_contents(__DIR__ . "/{$prefix}.log", $log, FILE_APPEND);
+}
+?>

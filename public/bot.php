@@ -66,22 +66,27 @@ if (isset($update["message"])) {
             $result = json_decode($forwarded, true);
             if (isset($result['result']['message_id'])) {
                 saveUserMapping($result['result']['message_id'], $user_id);
+                logToFile("💾 已記錄對應關係 message_id {$result['result']['message_id']} → user_id $user_id", "reply");
             }
         }
     }
 
     if ($chat_id == $manager_group_id && isset($message["reply_to_message"])) {
         $reply_to_id = $message["reply_to_message"]["message_id"];
+        logToFile("🔍 嘗試取得對應 user_id for message_id $reply_to_id", "reply");
         $target_user_id = getMappedUserId($reply_to_id);
+
         if ($target_user_id) {
             if (isset($message["voice"])) {
                 logToFile("⛔ 忽略語音", "reply");
             } else {
                 $reply_text = $text ?? '[非文字內容]';
                 sendMessage($target_user_id, "💬 潤匯港客服回覆：\n" . $reply_text);
+                sendMessage($chat_id, "✅ 已成功回覆用戶 $target_user_id");
             }
         } else {
-            logToFile("⚠️ 找不到對應 user_id", "error");
+            logToFile("⚠️ 找不到對應使用者 for message_id $reply_to_id", "error");
+            sendMessage($chat_id, "⚠️ 找不到對應使用者，請確認是否是回覆機器人轉發的訊息。");
         }
     }
 }
@@ -145,11 +150,15 @@ function saveUserMapping($group_msg_id, $user_id) {
     $map = file_exists($file) ? json_decode(file_get_contents($file), true) : [];
     $map[$group_msg_id] = $user_id;
     file_put_contents($file, json_encode($map, JSON_PRETTY_PRINT));
+    logToFile("📁 user_map 寫入成功：$group_msg_id → $user_id", "reply");
 }
 
 function getMappedUserId($group_msg_id) {
     $file = __DIR__ . "/../data/user_map.json";
-    if (!file_exists($file)) return null;
+    if (!file_exists($file)) {
+        logToFile("❌ user_map 檔案不存在", "reply");
+        return null;
+    }
     $map = json_decode(file_get_contents($file), true);
     return $map[$group_msg_id] ?? null;
 }

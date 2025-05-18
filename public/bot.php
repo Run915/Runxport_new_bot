@@ -79,7 +79,7 @@ if (isset($update["message"])) {
         $target_user_id = getMappedUserId($reply_msg_id);
         if ($target_user_id) {
             if (isset($msg["text"])) {
-                sendMessage($target_user_id, "💬 潤匯港客服回覆：\n" . $msg["text"]);
+                sendMessage($target_user_id, "📍 潤匯港客服回覆：\n" . $msg["text"]);
             } elseif (isset($msg["photo"])) {
                 $file_id = end($msg["photo"])["file_id"];
                 sendPhoto($target_user_id, $file_id, "🖼️ 客服圖片回覆");

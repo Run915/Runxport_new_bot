@@ -47,6 +47,6 @@ function getMappedUserId($message_id) {
 
 function logToFile($text, $prefix = 'log') {
     $log = "[" . date("H:i:s") . "] " . $text . "\n";
-    file_put_contents(__DIR__ . "/{$prefix}.log", $log, FILE_APPEND);
+    file_put_contents(__DIR__ . "/logs/{$prefix}.log", $log, FILE_APPEND);
 }
 ?>

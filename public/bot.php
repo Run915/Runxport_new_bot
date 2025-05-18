@@ -13,7 +13,13 @@ if (!$token) {
 }
 
 $apiURL = "https://api.telegram.org/bot$token/";
-$group_chat_id = -1002143413473; // ← 請換成你自己的群組 ID
+
+// ✅ 管理群組 & 客戶群組們
+$manager_group_id = -1002143413473; // 管理群
+$customer_group_ids = [
+    -1005557779999, // 客戶群 1
+    -1006668887777  // 客戶群 2
+];
 
 $update = json_decode(file_get_contents("php://input"), true);
 if (!$update) {
@@ -30,14 +36,37 @@ if (isset($update["message"])) {
     $message_id = $message["message_id"];
     $text = $message["text"] ?? null;
 
-    // ✅ 處理 /start 指令
+    // ✅ /start 指令
     if ($text === "/start") {
         $welcome = "✨各位蒞臨潤匯港的貴賓你好\n有任何匯率相關的問題，請私訊我，我們將盡快為您服務！";
         sendMessage($chat_id, $welcome);
         exit;
     }
 
-    // ✅ 私訊 → 轉發到群組 + 紀錄對照
+    // ✅ 管理群組發送 /公告：轉發到所有客戶群
+    if ($chat_id == $manager_group_id && isset($text) && strpos($text, "/公告") === 0) {
+        $caption = trim(substr($text, 3)); // 去掉 "/公告"
+
+        foreach ($customer_group_ids as $target_id) {
+            if (isset($message["photo"])) {
+                $photo = end($message["photo"])["file_id"];
+                sendPhoto($target_id, $photo, $caption);
+                logToFile("📷 圖片公告 → $target_id", "broadcast");
+
+            } elseif (isset($message["video"])) {
+                $video = $message["video"]["file_id"];
+                sendVideo($target_id, $video, $caption);
+                logToFile("🎬 影片公告 → $target_id", "broadcast");
+
+            } else {
+                sendMessage($target_id, "📢 $caption");
+                logToFile("💬 文字公告 → $target_id", "broadcast");
+            }
+        }
+        exit;
+    }
+
+    // ✅ 私訊 → 轉發到管理群，並記錄對應
     if ($chat_id > 0) {
         $forwarded_msg = forwardMessageToGroup($chat_id, $message_id);
         if ($forwarded_msg) {
@@ -49,14 +78,21 @@ if (isset($update["message"])) {
         }
     }
 
-    // ✅ 群組回覆訊息 → 查對照表回傳給原客戶
-    if ($chat_id == $group_chat_id && isset($message["reply_to_message"])) {
+    // ✅ 群組回覆 → 回原私訊用戶
+    if ($chat_id == $manager_group_id && isset($message["reply_to_message"])) {
         $replied_msg_id = $message["reply_to_message"]["message_id"];
         $target_user_id = getMappedUserId($replied_msg_id);
+
         if ($target_user_id) {
-            sendMessage($target_user_id, "💬 潤匯港客服回覆：\n" . $text);
+            if (isset($message["voice"])) {
+                // 不處理語音
+                logToFile("⛔ 忽略語音回覆", "reply");
+            } else {
+                $reply_text = $text ?? '[非文字內容]';
+                sendMessage($target_user_id, "💬 潤匯港客服回覆：\n" . $reply_text);
+            }
         } else {
-            logToFile("⚠️ 無法找到回覆對應的使用者：訊息ID $replied_msg_id", "error");
+            logToFile("⚠️ 找不到對應使用者 for message_id $replied_msg_id", "error");
         }
     }
 }
@@ -72,45 +108,67 @@ function sendMessage($chat_id, $text, $mode = null) {
         $data['parse_mode'] = $mode;
     }
     $res = file_get_contents($apiURL . "sendMessage?" . http_build_query($data));
-    logToFile("📤 發送訊息結果：" . $res, "message");
+    logToFile("📤 傳送文字：" . $res, "message");
     return $res;
 }
 
-// ✅ 轉發訊息並回傳回應 JSON
-function forwardMessageToGroup($from_chat_id, $message_id) {
-    global $apiURL, $group_chat_id;
+// ✅ 發送圖片
+function sendPhoto($chat_id, $file_id, $caption = '') {
+    global $apiURL;
     $data = [
-        'chat_id' => $group_chat_id,
+        'chat_id' => $chat_id,
+        'photo' => $file_id,
+        'caption' => $caption
+    ];
+    $res = file_get_contents($apiURL . "sendPhoto?" . http_build_query($data));
+    logToFile("📷 發送圖片：" . $res, "message");
+}
+
+// ✅ 發送影片
+function sendVideo($chat_id, $file_id, $caption = '') {
+    global $apiURL;
+    $data = [
+        'chat_id' => $chat_id,
+        'video' => $file_id,
+        'caption' => $caption
+    ];
+    $res = file_get_contents($apiURL . "sendVideo?" . http_build_query($data));
+    logToFile("🎬 發送影片：" . $res, "message");
+}
+
+// ✅ 轉發私訊到管理群組
+function forwardMessageToGroup($from_chat_id, $message_id) {
+    global $apiURL, $manager_group_id;
+    $data = [
+        'chat_id' => $manager_group_id,
         'from_chat_id' => $from_chat_id,
         'message_id' => $message_id
     ];
     $res = file_get_contents($apiURL . "forwardMessage?" . http_build_query($data));
-    logToFile("🔁 轉發訊息結果：" . $res, "forward");
+    logToFile("🔁 轉發到管理群：" . $res, "forward");
     return $res;
 }
 
-// ✅ 記錄對照表（訊息 ID → 使用者 ID）
+// ✅ 儲存使用者對應關係
 function saveUserMapping($group_msg_id, $user_id) {
     $file = __DIR__ . "/data/user_map.json";
     if (!file_exists(dirname($file))) {
         mkdir(dirname($file), 0777, true);
     }
-
     $map = file_exists($file) ? json_decode(file_get_contents($file), true) : [];
     $map[$group_msg_id] = $user_id;
     file_put_contents($file, json_encode($map, JSON_PRETTY_PRINT));
 }
 
-// ✅ 查詢對應使用者
+// ✅ 查找對應使用者
 function getMappedUserId($group_msg_id) {
     $file = __DIR__ . "/data/user_map.json";
     if (!file_exists($file)) return null;
-
     $map = json_decode(file_get_contents($file), true);
     return $map[$group_msg_id] ?? null;
 }
 
-// ✅ 記錄日誌
+// ✅ 日誌記錄
 function logToFile($data, $filename = "general") {
     $dir = __DIR__ . "/logs";
     if (!file_exists($dir)) {
@@ -120,4 +178,5 @@ function logToFile($data, $filename = "general") {
     file_put_contents($path, date("[Y-m-d H:i:s] ") . $data . "\n", FILE_APPEND);
 }
 ?>
+
 

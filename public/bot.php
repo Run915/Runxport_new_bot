@@ -38,7 +38,7 @@ if (isset($update["message"])) {
 
     // ✅ 歡迎訊息
     if ($text === "/start") {
-        $welcome = "🌟 親愛的潤匯港貴賓您好！\n歡迎加入我們，有任何匯率相關問題，請直接私訊，將有專人為您服務 🧑‍💼";
+        $welcome = "🌟 親愛的潤匯港貴賓您好！\n歡迎加入我們，有任何匯率相關問題，請直接私訊，將有專人為您服務 ";
         sendMessage($chat_id, $welcome);
         exit;
     }

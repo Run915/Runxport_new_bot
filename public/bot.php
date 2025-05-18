@@ -13,8 +13,8 @@ if (!$token) {
 }
 
 $apiURL = "https://api.telegram.org/bot$token/";
+$group_chat_id = -1002143413473; // ← 請換成你自己的群組 ID
 
-// ✅ 讀取並解析 webhook 請求
 $update = json_decode(file_get_contents("php://input"), true);
 if (!$update) {
     logToFile("⚠️ 無效的 webhook 請求", "webhook");
@@ -22,9 +22,7 @@ if (!$update) {
 }
 logToFile("✅ 收到 webhook 請求：" . json_encode($update), "webhook");
 
-// ✅ 設定群組 ID
-$group_chat_id = -1002143413473;
-
+// ✅ 處理訊息
 if (isset($update["message"])) {
     $message = $update["message"];
     $chat_id = $message["chat"]["id"];
@@ -39,22 +37,31 @@ if (isset($update["message"])) {
         exit;
     }
 
-    // ✅ 如果是私人訊息，整則轉發到群組（包含圖片、貼圖等）
+    // ✅ 私訊 → 轉發到群組 + 紀錄對照
     if ($chat_id > 0) {
-        forwardMessageToGroup($chat_id, $message_id);
+        $forwarded_msg = forwardMessageToGroup($chat_id, $message_id);
+        if ($forwarded_msg) {
+            $forwarded_data = json_decode($forwarded_msg, true);
+            if (isset($forwarded_data['result']['message_id'])) {
+                $group_msg_id = $forwarded_data['result']['message_id'];
+                saveUserMapping($group_msg_id, $user_id);
+            }
+        }
     }
 
-    // ✅ 如果是群組的回覆訊息，轉發回原用戶
+    // ✅ 群組回覆訊息 → 查對照表回傳給原客戶
     if ($chat_id == $group_chat_id && isset($message["reply_to_message"])) {
-        $replied_text = $message["reply_to_message"]["text"] ?? '';
-        if (preg_match('/tg:\/\/user\?id=(\d+)/', $replied_text, $matches)) {
-            $target_user_id = $matches[1];
+        $replied_msg_id = $message["reply_to_message"]["message_id"];
+        $target_user_id = getMappedUserId($replied_msg_id);
+        if ($target_user_id) {
             sendMessage($target_user_id, "💬 潤匯港客服回覆：\n" . $text);
+        } else {
+            logToFile("⚠️ 無法找到回覆對應的使用者：訊息ID $replied_msg_id", "error");
         }
     }
 }
 
-// ✅ 傳送文字訊息
+// ✅ 發送文字訊息
 function sendMessage($chat_id, $text, $mode = null) {
     global $apiURL;
     $data = [
@@ -65,10 +72,11 @@ function sendMessage($chat_id, $text, $mode = null) {
         $data['parse_mode'] = $mode;
     }
     $res = file_get_contents($apiURL . "sendMessage?" . http_build_query($data));
-    logToFile("📤 傳送訊息結果：" . $res, "message");
+    logToFile("📤 發送訊息結果：" . $res, "message");
+    return $res;
 }
 
-// ✅ 轉發整則訊息
+// ✅ 轉發訊息並回傳回應 JSON
 function forwardMessageToGroup($from_chat_id, $message_id) {
     global $apiURL, $group_chat_id;
     $data = [
@@ -78,9 +86,31 @@ function forwardMessageToGroup($from_chat_id, $message_id) {
     ];
     $res = file_get_contents($apiURL . "forwardMessage?" . http_build_query($data));
     logToFile("🔁 轉發訊息結果：" . $res, "forward");
+    return $res;
 }
 
-// ✅ 記錄日誌函式
+// ✅ 記錄對照表（訊息 ID → 使用者 ID）
+function saveUserMapping($group_msg_id, $user_id) {
+    $file = __DIR__ . "/data/user_map.json";
+    if (!file_exists(dirname($file))) {
+        mkdir(dirname($file), 0777, true);
+    }
+
+    $map = file_exists($file) ? json_decode(file_get_contents($file), true) : [];
+    $map[$group_msg_id] = $user_id;
+    file_put_contents($file, json_encode($map, JSON_PRETTY_PRINT));
+}
+
+// ✅ 查詢對應使用者
+function getMappedUserId($group_msg_id) {
+    $file = __DIR__ . "/data/user_map.json";
+    if (!file_exists($file)) return null;
+
+    $map = json_decode(file_get_contents($file), true);
+    return $map[$group_msg_id] ?? null;
+}
+
+// ✅ 記錄日誌
 function logToFile($data, $filename = "general") {
     $dir = __DIR__ . "/logs";
     if (!file_exists($dir)) {
@@ -90,3 +120,4 @@ function logToFile($data, $filename = "general") {
     file_put_contents($path, date("[Y-m-d H:i:s] ") . $data . "\n", FILE_APPEND);
 }
 ?>
+

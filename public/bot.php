@@ -30,29 +30,31 @@ if (isset($update["message"])) {
     $user_id = $message["from"]["id"];
     $message_id = $message["message_id"];
     $text = $message["text"] ?? null;
+    $caption = $message["caption"] ?? null;
+    $commandText = $text ?? $caption;
 
     if ($text === "/start") {
-        $welcome = "✨ 各位蒞臨潤匯港的貴賓你好\n有任何匯率相關的問題，請私訊我，我們將盡快為您服務！";
+        $welcome = "✨ 各位蒞臨潤匯港的貴賓你好\n\n💬 有任何匯率相關的問題，請私訊我，我們將盡快為您服務！";
         sendMessage($chat_id, $welcome);
         exit;
     }
 
-    if ($chat_id == $manager_group_id && isset($text) && strpos($text, "/公告") === 0) {
-        $caption = trim(preg_replace('/^\/公告\s*/u', '', $text));
-        logToFile("🎯 處理公告：$caption", "debug");
-        sendMessage($chat_id, "📢 公告處理中：$caption");
+    if ($chat_id == $manager_group_id && isset($commandText) && strpos($commandText, "/公告") === 0) {
+        $captionText = trim(preg_replace('/^\/公告\s*/u', '', $commandText));
+        logToFile("🎯 處理公告：$captionText", "debug");
+        sendMessage($chat_id, "📢 公告處理中：$captionText");
 
         foreach ($customer_group_ids as $target_id) {
             if (isset($message["photo"])) {
                 logToFile("🖼️ 偵測到圖片公告", "debug");
                 $photo = end($message["photo"])["file_id"];
                 sendMessage($chat_id, "🧪 即將發送圖片公告到群組 $target_id\n圖片ID: $photo");
-                sendPhoto($target_id, $photo, $caption, $chat_id);
+                sendPhoto($target_id, $photo, $captionText, $chat_id);
             } elseif (isset($message["video"])) {
                 $video = $message["video"]["file_id"];
-                sendVideo($target_id, $video, $caption);
+                sendVideo($target_id, $video, $captionText);
             } else {
-                sendMessage($target_id, "📢 $caption");
+                sendMessage($target_id, "📢 $captionText");
             }
         }
         exit;
@@ -162,6 +164,7 @@ function logToFile($data, $filename = "general") {
     file_put_contents($path, date("[Y-m-d H:i:s] ") . $data . "\n", FILE_APPEND);
 }
 ?>
+
 
 
 

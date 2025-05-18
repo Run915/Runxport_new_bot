@@ -61,6 +61,24 @@ if ($chat_id == $manager_group_id && isset($msg['reply_to_message'])) {
     exit;
 }
 
+// ✅ 客戶私訊 → 轉發至管理群組並記錄對應
+if ($chat_type === 'private' && $chat_id == $user_id) {
+    if (isset($msg['text'])) {
+        $message_id = sendMessage($manager_group_id, "💬 客戶來訊：\n" . $msg['text']);
+        saveUserMapping($message_id, $user_id);
+    } elseif (isset($msg['photo'])) {
+        $photo = end($msg['photo'])['file_id'];
+        $caption = $msg['caption'] ?? '(圖片)';
+        $message_id = sendPhoto($manager_group_id, $photo, "🖼️ 客戶圖片：\n" . $caption);
+        saveUserMapping($message_id, $user_id);
+    } elseif (isset($msg['video'])) {
+        $video = $msg['video']['file_id'];
+        $caption = $msg['caption'] ?? '(影片)';
+        $message_id = sendVideo($manager_group_id, $video, "🎞️ 客戶影片：\n" . $caption);
+        saveUserMapping($message_id, $user_id);
+    }
+    exit;
+}
 
 
 

@@ -49,7 +49,7 @@ if ($chat_type === 'private' && $chat_id == $user_id) {
     $username = $msg['from']['username'] ?? '';
     $from_name = $username ? "@$username（$first_name）" : $first_name;
 
-    // 轉發原始訊息（保留可回覆）
+    // 只轉發一次，不再補發「來自誰」
     $forward_data = [
         'chat_id' => $manager_group_id,
         'from_chat_id' => $chat_id,
@@ -61,10 +61,9 @@ if ($chat_type === 'private' && $chat_id == $user_id) {
         saveUserMapping($result, $user_id);
     }
 
-    // 顯示來源使用者名稱
-    sendMessage($manager_group_id, "💬 來自 {$from_name}");
     exit;
 }
+
 
 // ✅ 客服群組回覆訊息 → 回傳給原本私訊的客戶
 if ($chat_id == $manager_group_id && isset($msg['reply_to_message'])) {

@@ -42,20 +42,36 @@ if (isset($update["message"])) {
     if ($chat_id == $manager_group_id && isset($commandText) && strpos($commandText, "/公告") === 0) {
         $captionText = trim(preg_replace('/^\/公告\s*/u', '', $commandText));
         logToFile("🎯 處理公告：$captionText", "debug");
-        sendMessage($chat_id, "📢 公告處理中：$captionText");
+        sendMessage($chat_id, "📢 公告處理中...\n\n📄 內容：$captionText");
+
+        $successCount = 0;
+        $failures = [];
 
         foreach ($customer_group_ids as $target_id) {
             if (isset($message["photo"])) {
-                logToFile("🖼️ 偵測到圖片公告", "debug");
                 $photo = end($message["photo"])["file_id"];
-                sendMessage($chat_id, "🧪 即將發送圖片公告到群組 $target_id\n圖片ID: $photo");
-                sendPhoto($target_id, $photo, $captionText, $chat_id);
+                $res = sendPhoto($target_id, $photo, $captionText);
             } elseif (isset($message["video"])) {
                 $video = $message["video"]["file_id"];
-                sendVideo($target_id, $video, $captionText);
+                $res = sendVideo($target_id, $video, $captionText);
             } else {
-                sendMessage($target_id, "📢 $captionText");
+                $res = sendMessage($target_id, "📢 $captionText");
             }
+
+            $response = json_decode($res, true);
+            if ($response && $response['ok']) {
+                $successCount++;
+            } else {
+                $failures[] = [
+                    'id' => $target_id,
+                    'error' => $response['description'] ?? '未知錯誤'
+                ];
+            }
+        }
+
+        sendMessage($chat_id, "✅ 已公告至 {$successCount} 個群組" . (count($failures) > 0 ? "，其中有 " . count($failures) . " 個失敗" : ""));
+        foreach ($failures as $fail) {
+            sendMessage($chat_id, "❌ 發送失敗：群組 {$fail['id']}\n錯誤：{$fail['error']}");
         }
         exit;
     }
@@ -100,7 +116,7 @@ function sendMessage($chat_id, $text, $mode = null) {
     return $res;
 }
 
-function sendPhoto($chat_id, $file_id, $caption = '', $debug_chat_id = null) {
+function sendPhoto($chat_id, $file_id, $caption = '') {
     global $token;
     $url = "https://api.telegram.org/bot$token/sendPhoto";
     $post_fields = [
@@ -116,17 +132,7 @@ function sendPhoto($chat_id, $file_id, $caption = '', $debug_chat_id = null) {
     $res = curl_exec($ch);
     curl_close($ch);
     logToFile("📷 sendPhoto：$res", "message");
-    $decoded = json_decode($res, true);
-    if (!$decoded || !$decoded['ok']) {
-        logToFile("❌ 圖片發送失敗：" . $res, "error");
-        if ($debug_chat_id) {
-            sendMessage($debug_chat_id, "❌ 發送圖片到 $chat_id 失敗\n錯誤訊息：" . ($decoded['description'] ?? '無回應'));
-        }
-    } else {
-        if ($debug_chat_id) {
-            sendMessage($debug_chat_id, "✅ 圖片公告成功送出到群組 $chat_id");
-        }
-    }
+    return $res;
 }
 
 function sendVideo($chat_id, $file_id, $caption = '') {
@@ -134,6 +140,7 @@ function sendVideo($chat_id, $file_id, $caption = '') {
     $data = ['chat_id' => $chat_id, 'video' => $file_id, 'caption' => $caption];
     $res = file_get_contents($apiURL . "sendVideo?" . http_build_query($data));
     logToFile("🎬 sendVideo：$res", "message");
+    return $res;
 }
 
 function forwardMessageToGroup($from_chat_id, $message_id) {

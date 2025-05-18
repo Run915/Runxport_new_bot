@@ -38,23 +38,24 @@ if (isset($update['message'])) {
         exit;
     }
 
-    // ✅ 管理群組發佈公告
-    if ($chat_id == $manager_group_id && $text && strpos($text, '/公告') === 0) {
-        $caption = trim(preg_replace('/^\/公告\s*/u', '', $text));
+   // ✅ 管理群組發佈公告（支援 forum 群組）
+if ($chat_id == $manager_group_id && isset($msg['text']) && preg_match('/^\/公告\s+/u', $msg['text'])) {
+    $caption = trim(preg_replace('/^\/公告\s*/u', '', $msg['text']));
 
-        foreach ($customer_group_ids as $target_id) {
-            if (isset($msg['photo'])) {
-                $photo = end($msg['photo'])['file_id'];
-                sendPhoto($target_id, $photo, "📢 $caption");
-            } elseif (isset($msg['video'])) {
-                $video = $msg['video']['file_id'];
-                sendVideo($target_id, $video, "📢 $caption");
-            } else {
-                sendMessage($target_id, "📢 $caption");
-            }
+    foreach ($customer_group_ids as $target_id) {
+        if (isset($msg['photo'])) {
+            $photo = end($msg['photo'])['file_id'];
+            sendPhoto($target_id, $photo, "📢 $caption");
+        } elseif (isset($msg['video'])) {
+            $video = $msg['video']['file_id'];
+            sendVideo($target_id, $video, "📢 $caption");
+        } else {
+            sendMessage($target_id, "📢 $caption");
         }
-        exit;
     }
+    exit;
+}
+
 
     // ✅ 客戶私訊 → 轉發給管理員 + 建立 mapping
     if ($chat_id > 0) {

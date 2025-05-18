@@ -12,7 +12,7 @@ $apiURL = "https://api.telegram.org/bot$token/";
 
 // ✅ 群組 ID 設定
 $manager_group_id = -1002143413473;
-$customer_group_ids = [-1004894662524];
+$customer_group_ids = [-1002363718529];
 
 // ✅ 接收資料
 $update = json_decode(file_get_contents('php://input'), true);

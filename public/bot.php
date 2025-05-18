@@ -146,6 +146,7 @@ function logToFile($text, $type = 'log') {
     if (!file_exists($dir)) mkdir($dir, 0777, true);
     $file = $dir . "/{$type}_" . date('Ymd') . ".log";
     file_put_contents($file, "[" . date('H:i:s') . "] " . $text . "\n", FILE_APPEND);
+    error_log($line); // ✅ 重點：這一行會直接把 log 印到 Render 控制台
 }
 
 

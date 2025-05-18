@@ -18,7 +18,7 @@ $customer_group_ids = [-1004894662524];
 $update = json_decode(file_get_contents('php://input'), true);
 if (!$update) exit;
 
-// ✅ 記錄 webhook 收到的資料（除錯用）
+// ✅ webhook 除錯 log
 logToFile("Webhook received", 'webhook');
 logToFile(json_encode($update, JSON_UNESCAPED_UNICODE), 'webhook');
 
@@ -29,15 +29,19 @@ if (isset($update['message'])) {
     $message_id = $msg['message_id'];
     $text = $msg['text'] ?? null;
 
-    // ✅ 處理 /start 歡迎訊息
+    // ✅ 額外 log 公告訊息類型（除錯用）
+    logToFile("📨 公告接收到的訊息類型：" . json_encode(array_keys($msg)), 'webhook');
+
+    // ✅ /start 私訊歡迎
     if ($text === '/start') {
         sendMessage($chat_id, "🌟 各位蒞臨潤匯港的貴賓你好\n有任何匯率相關的問題，請私訊我，我們將盡快為您服務！");
         exit;
     }
 
-    // ✅ 管理群組 /公告
+    // ✅ 管理群組發佈公告
     if ($chat_id == $manager_group_id && $text && strpos($text, '/公告') === 0) {
-        $caption = trim(substr($text, 3));
+        $caption = trim(preg_replace('/^\/公告\s*/u', '', $text));
+
         foreach ($customer_group_ids as $target_id) {
             if (isset($msg['photo'])) {
                 $photo = end($msg['photo'])['file_id'];
@@ -52,7 +56,7 @@ if (isset($update['message'])) {
         exit;
     }
 
-    // ✅ 客戶私訊 → 轉發到管理群 + 存對應
+    // ✅ 客戶私訊 → 轉發給管理員 + 建立 mapping
     if ($chat_id > 0) {
         $res = forwardMessage($manager_group_id, $chat_id, $message_id);
         $data = json_decode($res, true);
@@ -62,7 +66,7 @@ if (isset($update['message'])) {
         exit;
     }
 
-    // ✅ 客服回覆訊息
+    // ✅ 客服群組回覆訊息 → 傳回原私訊者
     if ($chat_id == $manager_group_id && isset($msg['reply_to_message'])) {
         $reply_id = $msg['reply_to_message']['message_id'];
         $target_user_id = getMappedUserId($reply_id);
@@ -123,7 +127,7 @@ function forwardMessage($to, $from, $msg_id) {
     ]));
 }
 
-// ✅ 存使用者對應
+// ✅ 儲存對應
 function saveUserMapping($group_msg_id, $user_id) {
     $file = __DIR__ . '/data/user_map.json';
     if (!file_exists(dirname($file))) mkdir(dirname($file), 0777, true);
@@ -132,7 +136,7 @@ function saveUserMapping($group_msg_id, $user_id) {
     file_put_contents($file, json_encode($map));
 }
 
-// ✅ 查對應
+// ✅ 查詢對應
 function getMappedUserId($group_msg_id) {
     $file = __DIR__ . '/data/user_map.json';
     if (!file_exists($file)) return null;
@@ -140,14 +144,14 @@ function getMappedUserId($group_msg_id) {
     return $map[$group_msg_id] ?? null;
 }
 
-// ✅ 紀錄除錯用 log
+// ✅ log 除錯用
 function logToFile($text, $type = 'log') {
     $dir = __DIR__ . '/logs';
     if (!file_exists($dir)) mkdir($dir, 0777, true);
     $file = $dir . "/{$type}_" . date('Ymd') . ".log";
-    $line = "[" . date('H:i:s') . "] " . $text . "\n"; // ← 🔧你少了這一行
+    $line = "[" . date('H:i:s') . "] " . $text . "\n";
     file_put_contents($file, $line, FILE_APPEND);
-    error_log($line); // ← 現在才有內容能印
+    error_log($line); // ✅ 重點：印出到 Render 控制台
 }
 
 

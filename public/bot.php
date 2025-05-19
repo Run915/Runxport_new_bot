@@ -13,7 +13,7 @@ $text = $msg['text'] ?? ($msg['caption'] ?? '');
 $message_id = $msg['message_id'] ?? '';
 
 // 🧱 防止 bot 自己送出的訊息被 webhook 再次觸發（避免無限公告）
-$bot_id = 8199489325; // ← 請填入你 bot 的 ID
+$bot_id = 8199489325;
 if ($user_id == $bot_id) {
     logToFile("🛑 忽略機器人自己的訊息");
     exit;
@@ -22,7 +22,7 @@ if ($user_id == $bot_id) {
 // ✅ 群組 ID 設定
 $manager_group_id = -1002143413473;
 $client_group_ids = [-1002363718529,
-    ]; // 可加入更多群組 ID
+    ];
 
 // ✅ 私訊歡迎訊息
 if ($chat_type === 'private' && $text === '/start') {
@@ -30,29 +30,38 @@ if ($chat_type === 'private' && $text === '/start') {
     exit;
 }
 
-// ✅ /公告 功能（處理文字、圖片、影片）＋記憶最近 5 則 message_id
+// ✅ /公告 功能：支援文字、圖片、影片公告，並記錄處理過的 message_id
 if ($chat_id == $manager_group_id && strpos($text, '/公告') === 0) {
     $cache_file = 'announcement_cache.json';
     $cache = [];
 
+    // 讀取已處理記錄
     if (file_exists($cache_file)) {
         $json = file_get_contents($cache_file);
         $cache = json_decode($json, true) ?: [];
     }
 
-    if (in_array($message_id, $cache)) {
+    $now = time();
+    $expired = 86400; // 24 小時
+
+    // 自動清除 24 小時前的紀錄
+    foreach ($cache as $id => $timestamp) {
+        if ($now - $timestamp > $expired) {
+            unset($cache[$id]);
+        }
+    }
+
+    // 已處理過的 message_id：跳過
+    if (isset($cache[$message_id])) {
         logToFile("⚠️ 跳過重複公告 message_id: {$message_id}");
         exit;
     }
 
-    // 寫入新的 message_id 到 cache，保留最多 5 筆
-    $cache[] = $message_id;
-    if (count($cache) > 5) {
-        $cache = array_slice($cache, -5); // 保留最後 5 筆
-    }
+    // 寫入這次處理的 message_id
+    $cache[$message_id] = $now;
     file_put_contents($cache_file, json_encode($cache));
 
-    // 開始發送公告
+    // 正式公告處理
     $text_content = trim(str_replace('/公告', '', $text));
     $media_caption = $text_content ?: '📢';
 
@@ -68,7 +77,7 @@ if ($chat_id == $manager_group_id && strpos($text, '/公告') === 0) {
         }
 
         saveUserMapping($msg['message_id'], $msg['from']['id']);
-        usleep(500000); // 延遲 0.5 秒
+        usleep(500000);
     }
 
     exit;
@@ -76,10 +85,6 @@ if ($chat_id == $manager_group_id && strpos($text, '/公告') === 0) {
 
 // ✅ 客戶私訊 → 轉發到管理群組
 if ($chat_type === 'private' && $chat_id == $user_id) {
-    $first_name = $msg['from']['first_name'] ?? '匿名';
-    $username = $msg['from']['username'] ?? '';
-    $from_name = $username ? "@$username（$first_name）" : $first_name;
-
     $forward_data = [
         'chat_id' => $manager_group_id,
         'from_chat_id' => $chat_id,
@@ -94,7 +99,7 @@ if ($chat_type === 'private' && $chat_id == $user_id) {
     exit;
 }
 
-// ✅ 客服群組回覆訊息 → 回傳給原私訊客戶
+// ✅ 客服群組回覆 → 回傳給原私訊客戶
 if ($chat_id == $manager_group_id && isset($msg['reply_to_message'])) {
     $reply_id = $msg['reply_to_message']['message_id'];
     $target_user_id = getMappedUserId($reply_id);
@@ -115,6 +120,7 @@ if ($chat_id == $manager_group_id && isset($msg['reply_to_message'])) {
 
     exit;
 }
+
 
 
 

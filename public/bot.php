@@ -79,7 +79,7 @@ $client_group_ids = [-1002363718529,
     -1002256943526,  // 美侖翁哩U
     -1002351309490,  // 老虎
     -1002571330054,  // 環球一人
-    -1002561643091.  // 勳
+    -1002561643091,  // 勳
     
     ];
 
@@ -122,22 +122,22 @@ if ($chat_id == $manager_group_id && strpos($text, '/公告') === 0) {
 
     // 正式公告處理
     $text_content = trim(str_replace('/公告', '', $text));
-    $media_caption = $text_content ?: '📢';
+    $media_caption = $text_content ?: '📢【公告通知】';
 
-    foreach ($client_group_ids as $group_id) {
-        if (isset($msg['photo'])) {
-            $photo = end($msg['photo'])['file_id'];
-            sendPhoto($group_id, $photo, "📢 " . $media_caption);
-        } elseif (isset($msg['video'])) {
-            $video = $msg['video']['file_id'];
-            sendVideo($group_id, $video, "📢 " . $media_caption);
-        } elseif (!empty($text_content)) {
-            sendMessage($group_id, "📢 " . $text_content);
-        }
-
-        saveUserMapping($msg['message_id'], $msg['from']['id']);
-        usleep(500000);
+foreach ($client_group_ids as $group_id) {
+    if (isset($msg['photo'])) {
+        $photo = end($msg['photo'])['file_id'];
+        sendPhoto($group_id, $photo, "📢【公告通知】\n" . $media_caption);
+    } elseif (isset($msg['video'])) {
+        $video = $msg['video']['file_id'];
+        sendVideo($group_id, $video, "📢【公告通知】\n" . $media_caption);
+    } elseif (!empty($text_content)) {
+        sendMessage($group_id, "📢【公告通知】\n" . $text_content);
     }
+
+    saveUserMapping($msg['message_id'], $msg['from']['id']);
+    usleep(500000);
+}
 
     exit;
 }

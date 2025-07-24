@@ -1,5 +1,5 @@
 <?php
-define("BOT_TOKEN", "8199489325:AAGQaXPMLgqLJOLpO79sfynB7bY5k4C1mwc");
+define("BOT_TOKEN", "8199489325:AAH-bAZWkr3MlRoWGTrUkwK0oE-Njc7vpq0");
 define("MAP_FILE", __DIR__ . "/user_map.json");
 
 function sendMessage($chat_id, $text) {

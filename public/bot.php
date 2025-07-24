@@ -1,5 +1,4 @@
 <?php
-<?php
 // ✅ 安全驗證：只允許 Telegram 官方請求
 if (!isset($_SERVER['HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN']) || $_SERVER['HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN'] !== 'run789azsx') {
     http_response_code(403);
@@ -96,6 +95,7 @@ $client_group_ids = [-1002363718529,
     ];
 
 // ✅ 私訊歡迎訊息
+logToFile("📥 收到私訊：chat_type={$chat_type}, text={$text}");
 if ($chat_type === 'private' && $text === '/start') {
     sendMessage($user_id, "🌟 各位蒞臨潤匯港的貴賓你好\n有任何匯率相關的問題，請私訊我，我們將盡快為您服務！");
     exit;

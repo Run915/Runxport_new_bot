@@ -1,25 +1,27 @@
 <?php
-// ======= 必填 =======
-$token = "8199489325:AAH-bAZWkr3MlRoWGTrUkwK0oE-Njc7vpq0";  // << 請改成你的 Bot Token
-$url = "https://runxport-new-bot.onrender.com/bot.php";  // 你的 webhook 目標 URL
-$secret = "run789azsx";  // 與 bot.php 中驗證一致的 token
-// ===================
+// ✅ 替換為你自己的 Bot Token
+$bot_token = '8199489325:AAH-bAZWkr3MlRoWGTrUkwK0oE-Njc7vpq0';
 
-$api = "https://api.telegram.org/bot{$token}/setWebhook";
+// ✅ 替換為你的網址與 secret_token
+$webhook_url = 'https://runxport-new-bot.onrender.com/bot.php';
+$secret_token = 'run789azsx';
 
+$url = "https://api.telegram.org/bot{$bot_token}/setWebhook";
 $data = [
-    "url" => $url,
-    "secret_token" => $secret
+    'url' => $webhook_url,
+    'secret_token' => $secret_token
 ];
 
 $options = [
-    "http" => [
-        "header" => "Content-Type: application/json\r\n",
-        "method" => "POST",
-        "content" => json_encode($data),
-    ],
+    'http' => [
+        'method'  => 'POST',
+        'header'  => "Content-Type: application/json",
+        'content' => json_encode($data)
+    ]
 ];
 
-$context = stream_context_create($options);
-$response = file_get_contents($api, false, $context);
-echo $response;
+$context  = stream_context_create($options);
+$result = file_get_contents($url, false, $context);
+
+header('Content-Type: application/json');
+echo $result;

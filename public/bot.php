@@ -1,4 +1,12 @@
 <?php
+<?php
+// ✅ 安全驗證：只允許 Telegram 官方請求
+if (!isset($_SERVER['HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN']) || $_SERVER['HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN'] !== 'run789azsx') {
+    http_response_code(403);
+    echo "Forbidden";
+    exit;
+}
+
 require_once "functions.php";
 
 $data = file_get_contents("php://input");

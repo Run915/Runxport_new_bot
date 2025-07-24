@@ -1,12 +1,18 @@
 <?php
 require_once "functions.php";
 
-// ✅ 安全驗證：只允許 Telegram 官方請求
-if (!isset($_SERVER['HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN']) || $_SERVER['HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN'] !== 'run789azsx') {
-    http_response_code(403);
-    echo "Forbidden";
-    exit;
+// ✅ 安全驗證：只允許 Telegram 發送並檢查 secret_token
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $expected_token = 'run789azsx';
+    $header_token = $_SERVER['HTTP_X_TELEGRAM_BOT_API_SECRET_TOKEN'] ?? '';
+
+    if ($header_token !== $expected_token) {
+        http_response_code(403);
+        echo "Forbidden - Invalid Secret Token";
+        exit;
+    }
 }
+
 
 
 

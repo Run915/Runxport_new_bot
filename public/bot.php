@@ -95,6 +95,12 @@ if ($chat_type === 'private' && $text === '/start') {
 
 // ✅ /公告 功能：支援文字、圖片、影片公告，並記錄處理過的 message_id
 if ($chat_id == $manager_group_id && strpos($text, '/公告') === 0) {
+    // 限制只有 admin_user_ids 才能發公告
+    if (!in_array($user_id, $admin_user_ids)) {
+        logToFile("❌ 非授權用戶嘗試發送公告：{$user_id}");
+        exit;
+    }
+
     $cache_file = 'announcement_cache.json';
     $cache = [];
 
@@ -128,20 +134,20 @@ if ($chat_id == $manager_group_id && strpos($text, '/公告') === 0) {
     $text_content = trim(str_replace('/公告', '', $text));
     $media_caption = $text_content ?: '📢【公告通知】';
 
-foreach ($client_group_ids as $group_id) {
-    if (isset($msg['photo'])) {
-        $photo = end($msg['photo'])['file_id'];
-        sendPhoto($group_id, $photo, "📢【公告通知】\n" . $media_caption);
-    } elseif (isset($msg['video'])) {
-        $video = $msg['video']['file_id'];
-        sendVideo($group_id, $video, "📢【公告通知】\n" . $media_caption);
-    } elseif (!empty($text_content)) {
-        sendMessage($group_id, "📢【公告通知】\n" . $text_content);
-    }
+    foreach ($client_group_ids as $group_id) {
+        if (isset($msg['photo'])) {
+            $photo = end($msg['photo'])['file_id'];
+            sendPhoto($group_id, $photo, "📢【公告通知】\n" . $media_caption);
+        } elseif (isset($msg['video'])) {
+            $video = $msg['video']['file_id'];
+            sendVideo($group_id, $video, "📢【公告通知】\n" . $media_caption);
+        } elseif (!empty($text_content)) {
+            sendMessage($group_id, "📢【公告通知】\n" . $text_content);
+        }
 
-    saveUserMapping($msg['message_id'], $msg['from']['id']);
-    usleep(500000);
-}
+        saveUserMapping($msg['message_id'], $msg['from']['id']);
+        usleep(500000);
+    }
 
     exit;
 }
